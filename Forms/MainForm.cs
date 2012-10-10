@@ -1,4 +1,5 @@
 using System;
+using CampoTetris.Forms;
 using System.Collections.Generic;
 using System.ComponentModel;
 using System.Data;
@@ -29,7 +30,8 @@ namespace CampoTetris
         private TetrisBlock curBlock;
         private TetrisBlock nextBlock;
         private TetrisGrid grid;
-
+        private ScoreKeeper scoreKeeper;
+        private ScoreTableForm frmHighScores;
         private int level
         {
             get
@@ -44,7 +46,6 @@ namespace CampoTetris
                     timerMain.Interval = 500 - (_level - 1) * 25;
             }
         }
-
         private int totLines
         {
             get
@@ -68,10 +69,10 @@ namespace CampoTetris
             {
                 _modifier = value;
                 lblModifier.Text = (_modifier / 100).ToString() + "x";
+				timerModifier.Stop();
                 timerModifier.Start();
             }
         }
-
         private int score
         {
             get
@@ -84,7 +85,6 @@ namespace CampoTetris
                 lblScore.Text = _score.ToString();
             }
         }
-
         private bool isGameOver
         {
             get
@@ -98,12 +98,21 @@ namespace CampoTetris
                 {
                     lblGameOver.Visible = true;
                     timerMain.Stop();
+                    // new high score
+                    if (score > scoreKeeper.lowest.score)
+                    {
+                        NewHighScoreForm frmNewScore = new NewHighScoreForm();
+                        frmNewScore.StartPosition = FormStartPosition.CenterParent;
+                        if (frmNewScore.ShowDialog(this) == DialogResult.OK)
+                            scoreKeeper.AddToHighScores(frmNewScore.playerName, score);
+                        frmNewScore.Dispose();
+                        frmHighScores.ShowDialog(this);
+                    }
                 }
                 else
                     lblGameOver.Visible = false;
             }
         }
-
         private bool isPaused
         {
             get
@@ -134,6 +143,9 @@ namespace CampoTetris
         {
             InitializeComponent();
             this.DoubleBuffered = true;  // removes flickering seen on some systems
+            scoreKeeper = new ScoreKeeper();
+            frmHighScores = new ScoreTableForm();
+            frmHighScores.StartPosition = FormStartPosition.CenterParent;
             StartGame();
         }
         #endregion
@@ -147,6 +159,7 @@ namespace CampoTetris
                 if (curBlock.y <= 2)
                 {
                     curBlock.MoveUp(dy);
+                    this.Invalidate();
                     isGameOver = true;
                     return;
                 }
@@ -155,6 +168,8 @@ namespace CampoTetris
                 int lines = grid.ClearLines();
                 totLines += lines;
                 score += lines * modifier;
+
+                // give a 2x modifier for 3 cleared lines; another 2x for 4 cleared lines
                 if (lines >= 3)
                 {
                     lblBonus.Visible = true;
@@ -223,6 +238,14 @@ namespace CampoTetris
         // handle user input
         private void MainForm_KeyDown(object sender, KeyEventArgs e)
         {
+            if (e.KeyCode == Keys.H)
+            {
+                if(!isPaused && !isGameOver)
+                    isPaused = true;
+                frmHighScores.ShowDialog(this);
+                return;
+            }
+
             if (!isGameOver && !isPaused)
             {
                 if (e.KeyCode == Keys.Up)
@@ -233,8 +256,6 @@ namespace CampoTetris
                     MoveBlockRight();
                 if (e.KeyCode == Keys.Down)
                     MoveBlockDown();
-                if (e.KeyCode == Keys.P || e.KeyCode == Keys.Pause)
-                    isPaused = true;
                 // space moves blocks all the way to the bottom
                 if (e.KeyCode == Keys.Space)
                 {
@@ -243,6 +264,8 @@ namespace CampoTetris
                     curBlock.MoveUp(dy);
                     MoveBlockDown();
                 }
+                if (e.KeyCode == Keys.P || e.KeyCode == Keys.Pause)
+                    isPaused = true;
                 this.Invalidate();
             }
             else if (isPaused)
